@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local AI Chat - LLaMA 2 Integration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            height: 80vh;
+            min-height: 600px;
+        }
+
+        .sidebar {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 30px 25px;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            overflow-y: auto;
+        }
+
+        .sidebar h2 {
+            color: white;
+            font-size: 24px;
+            margin-bottom: 25px;
+            font-weight: 600;
+        }
+
+        .settings-group {
+            margin-bottom: 25px;
+        }
+
+        .settings-group h3 {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 16px;
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .preset-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .preset-btn {
+            padding: 8px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .preset-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .preset-btn.active {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.6);
+        }
+
+        .temperature-slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.2);
+            outline: none;
+            appearance: none;
+        }
+
+        .temperature-slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ff6b6b;
+            transition: background-color 0.3s ease;
+        }
+
+        .status-dot.connected {
+            background: #51cf66;
+        }
+
+        .test-btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .test-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .chat-area {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .chat-header {
+            padding: 25px 30px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .chat-header h1 {
+            color: white;
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .chat-header p {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 16px;
+        }
+
+        .messages {
+            flex: 1;
+            padding: 20px 30px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .message {
+            max-width: 80%;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .message.user {
+            align-self: flex-end;
+        }
+
+        .message.ai {
+            align-self: flex-start;
+        }
+
+        .message-content {
+            padding: 15px 20px;
+            border-radius: 16px;
+            font-size: 15px;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-content {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.ai .message-content {
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.95);
+            border-bottom-left-radius: 4px;
+        }
+
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 15px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            border-bottom-left-radius: 4px;
+            max-width: 80px;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.6);
+            animation: typing 1.4s infinite ease-in-out;
+        }
+
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+        .input-area {
+            padding: 20px 30px 30px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .input-container {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .input-container textarea {
+            flex: 1;
+            min-height: 50px;
+            max-height: 120px;
+            padding: 15px 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 25px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 15px;
+            resize: none;
+            font-family: inherit;
+        }
+
+        .send-btn {
+            width: 50px;
+            height: 50px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .send-btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr;
+                height: 100vh;
+            }
+            
+            .sidebar {
+                max-height: 200px;
+                overflow-y: auto;
+            }
+            
+            .messages {
+                padding: 15px 20px;
+            }
+            
+            .input-area {
+                padding: 15px 20px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h2>Settings</h2>
+            
+            <div class="settings-group">
+                <h3>Connection</h3>
+                <div class="connection-status">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="statusText" style="color: rgba(255, 255, 255, 0.8); font-size: 14px;">Disconnected</span>
+                </div>
+                <button class="test-btn" id="testConnection">Test Connection</button>
+            </div>
+
+            <div class="settings-group">
+                <h3>Model</h3>
+                <div class="input-group">
+                    <label for="modelSelect">LLaMA 2 Model</label>
+                    <select id="modelSelect">
+                        <option value="llama2">llama2 (7B)</option>
+                        <option value="llama2:13b">llama2:13b (13B)</option>
+                        <option value="llama2:70b">llama2:70b (70B)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <h3>System Prompt</h3>
+                <div class="preset-buttons">
+                    <button class="preset-btn active" data-preset="assistant">Assistant</button>
+                    <button class="preset-btn" data-preset="coder">Coder</button>
+                    <button class="preset-btn" data-preset="tutor">Tutor</button>
+                    <button class="preset-btn" data-preset="creative">Creative</button>
+                </div>
+                <div class="input-group">
+                    <textarea id="systemPrompt" placeholder="Enter system prompt...">You are a helpful AI assistant. Provide clear, accurate, and helpful responses to user questions.</textarea>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <h3>Parameters</h3>
+                <div class="input-group">
+                    <label for="temperature">Temperature: <span id="tempValue">0.7</span></label>
+                    <input type="range" id="temperature" class="temperature-slider" min="0.1" max="2.0" step="0.1" value="0.7">
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-area">
+            <div class="chat-header">
+                <h1>Local AI Chat</h1>
+                <p>Chat with LLaMA 2 running locally via Ollama</p>
+            </div>
+
+            <div class="messages" id="messages">
+                <div class="message ai">
+                    <div class="message-content">
+                        Hello! I'm your local AI assistant powered by LLaMA 2. Make sure Ollama is running and test the connection to get started. How can I help you today?
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <div class="input-container">
+                    <textarea id="messageInput" placeholder="Type your message..." rows="1"></textarea>
+                    <button class="send-btn" id="sendBtn" disabled>
+                        <span>➤</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class LocalAIChat {
+            constructor() {
+                this.ollamaUrl = 'http://localhost:11434';
+                this.isConnected = false;
+                this.isGenerating = false;
+                this.conversationHistory = [];
+                
+                this.initializeElements();
+                this.setupEventListeners();
+                this.loadSettings();
+                this.setupPresets();
+            }
+
+            initializeElements() {
+                this.statusDot = document.getElementById('statusDot');
+                this.statusText = document.getElementById('statusText');
+                this.testBtn = document.getElementById('testConnection');
+                this.modelSelect = document.getElementById('modelSelect');
+                this.systemPrompt = document.getElementById('systemPrompt');
+                this.temperatureSlider = document.getElementById('temperature');
+                this.tempValue = document.getElementById('tempValue');
+                this.messages = document.getElementById('messages');
+                this.messageInput = document.getElementById('messageInput');
+                this.sendBtn = document.getElementById('sendBtn');
+            }
+
+            setupEventListeners() {
+                this.testBtn.addEventListener('click', () => this.testConnection());
+                this.sendBtn.addEventListener('click', () => this.sendMessage());
+                this.messageInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
+                
+                this.messageInput.addEventListener('input', () => {
+                    this.sendBtn.disabled = !this.messageInput.value.trim() || this.isGenerating;
+                });
+
+                this.temperatureSlider.addEventListener('input', (e) => {
+                    this.tempValue.textContent = e.target.value;
+                    this.saveSettings();
+                });
+
+                this.modelSelect.addEventListener('change', () => this.saveSettings());
+                this.systemPrompt.addEventListener('input', () => this.saveSettings());
+            }
+
+            setupPresets() {
+                const presets = {
+                    assistant: "You are a helpful AI assistant. Provide clear, accurate, and helpful responses to user questions.",
+                    coder: "You are an expert programmer and coding assistant. Help with code, debugging, best practices, and technical explanations. Provide clear, working code examples.",
+                    tutor: "You are a patient and knowledgeable tutor. Explain concepts clearly, break down complex topics, ask questions to check understanding, and provide examples.",
+                    creative: "You are a creative writing assistant. Help with storytelling, character development, plot ideas, and creative expression. Be imaginative and inspiring."
+                };
+
+                document.querySelectorAll('.preset-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        
+                        const preset = btn.dataset.preset;
+                        this.systemPrompt.value = presets[preset];
+                        this.saveSettings();
+                    });
+                });
+            }
+
+            async testConnection() {
+                this.testBtn.textContent = 'Testing...';
+                this.testBtn.disabled = true;
+
+                try {
+                    const response = await fetch(`${this.ollamaUrl}/api/tags`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.updateConnectionStatus(true);
+                        this.updateAvailableModels(data.models || []);
+                        this.showMessage('Connection successful! Available models loaded.', 'ai');
+                    } else {
+                        throw new Error('Server responded with error');
+                    }
+                } catch (error) {
+                    this.updateConnectionStatus(false);
+                    this.showMessage('Connection failed. Make sure Ollama is running on localhost:11434', 'ai');
+                } finally {
+                    this.testBtn.textContent = 'Test Connection';
+                    this.testBtn.disabled = false;
+                }
+            }
+
+            updateConnectionStatus(connected) {
+                this.isConnected = connected;
+                this.statusDot.classList.toggle('connected', connected);
+                this.statusText.textContent = connected ? 'Connected' : 'Disconnected';
+            }
+
+            updateAvailableModels(models) {
+                const currentValue = this.modelSelect.value;
+                this.modelSelect.innerHTML = '';
+                
+                const llamaModels = models.filter(model => 
+                    model.name.toLowerCase().includes('llama2') || 
+                    model.name.toLowerCase().includes('llama')
+                );
+
+                if (llamaModels.length > 0) {
+                    llamaModels.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.name;
+                        option.textContent = `${model.name} (${this.formatSize(model.size)})`;
+                        this.modelSelect.appendChild(option);
+                    });
+                } else {
+                    const defaultOptions = [
+                        { value: 'llama2', text: 'llama2 (7B)' },
+                        { value: 'llama2:13b', text: 'llama2:13b (13B)' },
+                        { value: 'llama2:70b', text: 'llama2:70b (70B)' }
+                    ];
+                    
+                    defaultOptions.forEach(opt => {
+                        const option = document.createElement('option');
+                        option.value = opt.value;
+                        option.textContent = opt.text;
+                        this.modelSelect.appendChild(option);
+                    });
+                }
+
+                if (currentValue && Array.from(this.modelSelect.options).some(opt => opt.value === currentValue)) {
+                    this.modelSelect.value = currentValue;
+                }
+            }
+
+            formatSize(bytes) {
+                if (!bytes) return 'Unknown size';
+                const gb = bytes / (1024 * 1024 * 1024);
+                return `${gb.toFixed(1)}GB`;
+            }
+
+            async sendMessage() {
+                const message = this.messageInput.value.trim();
+                if (!message || this.isGenerating || !this.isConnected) return;
+
+                this.showMessage(message, 'user');
+                this.messageInput.value = '';
+                this.sendBtn.disabled = true;
+                this.isGenerating = true;
+
+                this.showTypingIndicator();
+
+                try {
+                    const response = await this.generateResponse(message);
+                    this.hideTypingIndicator();
+                    this.showMessage(response, 'ai');
+                } catch (error) {
+                    this.hideTypingIndicator();
+                    this.showMessage(`Error: ${error.message}`, 'ai');
+                } finally {
+                    this.isGenerating = false;
+                    this.sendBtn.disabled = false;
+                }
+            }
+
+            async generateResponse(userMessage) {
+                const payload = {
+                    model: this.modelSelect.value,
+                    prompt: userMessage,
+                    system: this.systemPrompt.value,
+                    stream: false,
+                    options: {
+                        temperature: parseFloat(this.temperatureSlider.value)
+                    }
+                };
+
+                const response = await fetch(`${this.ollamaUrl}/api/generate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                return data.response || 'No response generated';
+            }
+
+            showMessage(content, sender) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}`;
+                
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                contentDiv.textContent = content;
+                
+                messageDiv.appendChild(contentDiv);
+                this.messages.appendChild(messageDiv);
+                this.messages.scrollTop = this.messages.scrollHeight;
+
+                if (sender === 'user') {
+                    this.conversationHistory.push({ role: 'user', content });
+                } else {
+                    this.conversationHistory.push({ role: 'assistant', content });
+                }
+            }
+
+            showTypingIndicator() {
+                const typingDiv = document.createElement('div');
+                typingDiv.className = 'message ai';
+                typingDiv.id = 'typingIndicator';
+                
+                const indicatorDiv = document.createElement('div');
+                indicatorDiv.className = 'typing-indicator';
+                
+                const dotsDiv = document.createElement('div');
+                dotsDiv.className = 'typing-dots';
+                
+                for (let i = 0; i < 3; i++) {
+                    const dot = document.createElement('div');
+                    dot.className = 'typing-dot';
+                    dotsDiv.appendChild(dot);
+                }
+                
+                indicatorDiv.appendChild(dotsDiv);
+                typingDiv.appendChild(indicatorDiv);
+                this.messages.appendChild(typingDiv);
+                this.messages.scrollTop = this.messages.scrollHeight;
+            }
+
+            hideTypingIndicator() {
+                const indicator = document.getElementById('typingIndicator');
+                if (indicator) {
+                    indicator.remove();
+                }
+            }
+
+            saveSettings() {
+                const settings = {
+                    model: this.modelSelect.value,
+                    systemPrompt: this.systemPrompt.value,
+                    temperature: this.temperatureSlider.value
+                };
+                
+                try {
+                    localStorage.setItem('localAISettings', JSON.stringify(settings));
+                } catch (e) {
+                    console.warn('Could not save settings to localStorage');
+                }
+            }
+
+            loadSettings() {
+                try {
+                    const settings = JSON.parse(localStorage.getItem('localAISettings') || '{}');
+                    
+                    if (settings.model) this.modelSelect.value = settings.model;
+                    if (settings.systemPrompt) this.systemPrompt.value = settings.systemPrompt;
+                    if (settings.temperature) {
+                        this.temperatureSlider.value = settings.temperature;
+                        this.tempValue.textContent = settings.temperature;
+                    }
+                } catch (e) {
+                    console.warn('Could not load settings from localStorage');
+                }
+            }
+        }
+
+        // Initialize the application when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new LocalAIChat();
+        });
+    </script>
+</body>
+</html> 
