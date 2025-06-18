@@ -1,53 +1,63 @@
+
 package com.localai.llamachatbot.controller;
 
-import com.localai.llamachatbot.model.ChatModels.*;
-import com.localai.llamachatbot.service.ChatService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
+import com.localai.llamachatbot.model.ChatModels.ChatRequest;
+import com.localai.llamachatbot.model.ChatModels.ChatResponse;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
+import java.util.*;
 
-@Controller
+@RestController
+@RequestMapping("/api/chat")
+@CrossOrigin(origins = "*")
 public class ChatController {
-    
-    private final ChatService chatService;
-    
-    @Autowired
-    public ChatController(ChatService chatService) {
-        this.chatService = chatService;
-    }
-    
-    @GetMapping("/")
-    public String index(Model model) {
-        model.addAttribute("title", "LLaMA 2 Chat Bot");
-        model.addAttribute("ollamaStatus", chatService.isOllamaAvailable());
-        return "index";
-    }
-    
-    @PostMapping("/api/chat")
-    @ResponseBody
+
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    @PostMapping
     public ResponseEntity<ChatResponse> chat(@RequestBody ChatRequest request) {
-        if (request.getMessage() == null || request.getMessage().trim().isEmpty()) {
-            ChatResponse errorResponse = new ChatResponse();
-            errorResponse.setResponse("Please provide a message");
-            errorResponse.setSuccess(false);
-            return ResponseEntity.badRequest().body(errorResponse);
+        String prompt = request.getMessage();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        Map<String, Object> ollamaRequest = new HashMap<>();
+        ollamaRequest.put("model", "llama2");
+        ollamaRequest.put("prompt", prompt);
+        ollamaRequest.put("stream", false);
+
+        HttpEntity<Map<String, Object>> httpEntity = new HttpEntity<>(ollamaRequest, headers);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.postForEntity(
+                    "http://localhost:11434/api/generate",
+                    httpEntity,
+                    Map.class);
+
+            String aiResponse = response.getBody().get("response").toString();
+
+            ChatResponse chatResponse = new ChatResponse();
+            chatResponse.setSuccess(true);
+            chatResponse.setResponse(aiResponse);
+            return ResponseEntity.ok(chatResponse);
+
+        } catch (Exception e) {
+            ChatResponse chatResponse = new ChatResponse();
+            chatResponse.setSuccess(false);
+            chatResponse.setResponse("Failed to connect to Ollama: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(chatResponse);
         }
-        
-        ChatResponse response = chatService.generateResponse(request);
-        return ResponseEntity.ok(response);
     }
-    
+
     @GetMapping("/api/health")
-    @ResponseBody
     public ResponseEntity<String> health() {
-        boolean isAvailable = chatService.isOllamaAvailable();
-        if (isAvailable) {
+        try {
+            ResponseEntity<Map> response = restTemplate.getForEntity("http://localhost:11434/api/tags", Map.class);
             return ResponseEntity.ok("Ollama is running and LLaMA 2 is available");
-        } else {
-            return ResponseEntity.serviceUnavailable()
-                .body("Ollama is not available. Please ensure Ollama is running with LLaMA 2 model");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body("Ollama is not available. Please ensure it's running with LLaMA 2 model.");
         }
     }
 }
